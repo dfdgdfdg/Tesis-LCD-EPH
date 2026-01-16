@@ -18,7 +18,7 @@ data25.drop(columns = ["V2_01_M", "V2_02_M", "V2_03_M","V5_01_M", "V5_02_M", "V5
 data = pd.concat([data22, data23, data24, data25], ignore_index=True)
 pd.set_option('display.max_columns', None)
 
-data['logP47T'] = np.where(data['P47T'] > 0, np.log10(data['P47T']), np.nan)
+data['logP47T'] = np.where((data['P47T'] > 0), np.log10(data['P47T']), np.nan)
 
 #Intento reducir la cardinalidad de las variables categoricas
 data['H07'] = data['H07'].map({0:0, 1: 1, 2: 0}) 
@@ -36,7 +36,6 @@ data = data.astype({'ANO4': 'category', 'TRIMESTRE': 'category', 'AGLOMERADO': '
                     ,'PP07G1':'category', 'PP07G2':'category','PP07G3':'category', 'PP07G4':'category','PP07H':'category',
                     'PP07I':'category', 'PP07J':'category', 'PP07K':'category','Region':'category', 'P08':'category', 'P09':'category','CONDACT':'category','PP07G_59':'category', 'P02':'category'})
 
-data.dtypes
 
 #Intento reducir registros por categoria, quiero reducir cardinalidad de variables categoricas
 data['V01'] = data['V01'].map({0:0,1:1,2:2,3:0,4:0,5:0,6:0}) 
@@ -52,3 +51,47 @@ data['P10'] = data['P10'].map({0:0,1:1,2:2,9:0})
 data = data.astype({'V01': 'category', 'H05': 'category', 'H06': 'category', 'H08': 'category', 
                     'H12':'category', 'PROP':'category', 'H14':'category','H13':'category','P10':'category'})
 categorical_columns = data.select_dtypes(include=['category']).columns
+
+#Quiero hacer nuevas columnas "dummy" para ANIO y TRIMESTRE
+data['ANIO_2022_Dummy'] = (data['ANO4'] == 2022).astype(int)
+data['ANIO_2023_Dummy'] = (data['ANO4'] == 2023).astype(int)
+data['ANIO_2024_Dummy'] = (data['ANO4'] == 2024).astype(int)
+data['ANIO_2025_Dummy'] = (data['ANO4'] == 2025).astype(int)
+data['TRIMESTRE_1_Dummy'] = (data['TRIMESTRE'] == 1).astype(int)
+data['TRIMESTRE_2_Dummy'] = (data['TRIMESTRE'] == 2).astype(int)
+data['TRIMESTRE_3_Dummy'] = (data['TRIMESTRE'] == 3).astype(int)
+data['TRIMESTRE_4_Dummy'] = (data['TRIMESTRE'] == 4).astype(int)
+
+target_cols_reg = { 'P21', 'T_VI', 'V12_M', 'V2_M', 'V3_M', 'V5_M', 'TOT_P12', 'PP08D1'}
+
+for col in target_cols_reg:
+    new_col_name = 'log' + col
+    data[new_col_name] = np.where((data[col] > 0), np.log10(data[col]), np.nan)
+
+
+def get_age_group(age):
+    if age <= 5:
+        return '0-5'
+    elif age <= 14:
+        return '6-14'
+    elif age <= 24:
+        return '15-24'
+    elif age <= 64:
+        return '25-64'
+    else:
+        return '65+'
+
+data['Rango_Etario'] = data['P03'].apply(get_age_group)
+
+age_group_counts = data.groupby(['CODUSU', 'Rango_Etario']).size().unstack(fill_value=0)
+
+for age_group in age_group_counts.columns:
+    data[f'Personas_{age_group}'] = data['CODUSU'].map(age_group_counts[age_group])
+
+data.drop(columns=['Rango_Etario'], inplace=True)
+
+#Maximo nivel educativo en el hogar
+
+data['Max_Nivel_Educativo'] = data.groupby(['CODUSU'])['P09'].transform(lambda s: s.astype(int).max())
+
+print(data.head(20))
