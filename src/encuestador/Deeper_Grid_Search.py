@@ -7,20 +7,19 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.ensemble import HistGradientBoostingRegressor
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 import Feature_Engineering as FE
 import matplotlib.pyplot as plt
 
 data = FE.data
-data_reg = data[(data['INGRESO'] == 1)]
+data_reg = data[(data['INGRESO'] == 1) & (data["PROP"].notna())]
 y_reg = data_reg['logP47T']
 excluir_cols = {'logP47T', 'Q','INGRESO', 'CODUSU', 'P47T', 'P21', 'T_VI', 'V12_M', 'V2_M', 'V3_M', 'V5_M', 'TOT_P12', 'PP08D1', 
-                'logP21', 'logT_VI', 'logV12_M', 'logV2_M', 'logV3_M', 'logV5_M', 'logTOT_P12', 'logPP08D1','ANO4','TRIMESTRE'}
+                'logP21', 'logT_VI', 'logV12_M', 'logV2_M', 'logV3_M', 'logV5_M', 'logTOT_P12', 'logPP08D1','ANO4','TRIMESTRE','INGRESO_NLB','INGRESO_JUB','INGRESO_SBS'}
 X_reg = data_reg.drop(columns=excluir_cols)
 
 X_train_test, X_val, y_train_test, y_val = train_test_split(X_reg, y_reg, test_size=0.10, random_state=42) #Separo 10% para validacion
 X_train, X_test, y_train, y_test = train_test_split(X_train_test, y_train_test, test_size=2/9, random_state=42) #Separo 20% total para test, 70% Train
-
 num_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
 cat_cols = X_train.select_dtypes(include=['object', 'category']).columns.tolist()
 
@@ -63,29 +62,46 @@ preproc_unscaled = ColumnTransformer([
 pipelines = {
         "LinearRegression": Pipeline([('preproc', preproc_unscaled), ('reg', LinearRegression())]),
         "Ridge": Pipeline([('preproc', preproc_scaled), ('reg', Ridge())]),
-        "Lasso": Pipeline([('preproc', preproc_scaled), ('reg', Lasso(max_iter=200))]),
+        "Lasso": Pipeline([('preproc', preproc_scaled), ('reg', Lasso())]),
         "HistGradientBoostingRegressor": Pipeline([('preproc', preproc_unscaled), ('reg', HistGradientBoostingRegressor(random_state=42))])
     }
 
 best_model = None
 best_r2 = -np.inf
 best_params = None
+best_mae = -np.inf
 
 best_lr = None
 best_lr_params = None
 best_lr_r2 = -np.inf
+best_lr_mae = -np.inf
+best_lr_var_pred = -np.inf
+best_lr_error_mean = -np.inf
+best_lr_error_var = -np.inf
 
 best_ridge = None
 best_ridge_params = None
 best_ridge_r2 = -np.inf
+best_ridge_mae = -np.inf
+best_ridge_var_pred = -np.inf
+best_ridge_error_mean = -np.inf
+best_ridge_error_var = -np.inf
 
 best_lasso = None
 best_lasso_params = None
 best_lasso_r2 = -np.inf
+best_lasso_mae = -np.inf
+best_lasso_var_pred = -np.inf
+best_lasso_error_mean = -np.inf
+best_lasso_error_var = -np.inf
 
 best_hgb = None
 best_hgb_params = None
 best_hgb_r2 = -np.inf
+best_hgb_mae = -np.inf
+best_hgb_var_pred = -np.inf
+best_hgb_error_mean = -np.inf
+best_hgb_error_var = -np.inf
 
 for name, pipe in pipelines.items():
     print(f"\n=== Evaluando modelo: {name} ===")
@@ -105,7 +121,11 @@ for name, pipe in pipelines.items():
     y_pred = best.predict(X_test)
 
     test_mse = mean_squared_error(y_test, y_pred)
+    test_mae = mean_absolute_error(y_test, y_pred)
     test_r2 = r2_score(y_test, y_pred)
+    test_var_pred = np.var(y_pred)
+    test_error_mean = np.mean(y_test - y_pred)
+    test_error_var = np.var(y_test - y_pred)
 
     # Guardar informacion de la mejor configuracion de cada modelo. Como en principio no sé cual es mejor entre los regresores lineales (estándar, Ridge, Lasso) ó el HistGradientBoosting, 
     # mantendré un registro de todos. Luego, solo usaré para graficar el mejor regresor lineal (incluyendo modelos con penalizacion como Ridge y Lasso), y el mejor HistGradientBoosting.
@@ -115,74 +135,75 @@ for name, pipe in pipelines.items():
             best_lr = best
             best_lr_params = grid.best_params_
             best_lr_r2 = test_r2
+            best_lr_mae = test_mae
+            best_lr_var_pred = test_var_pred
+            best_lr_error_mean = test_error_mean
+            best_lr_error_var = test_error_var
     if name == "Ridge":
         if test_r2 > best_ridge_r2:
             best_ridge = best
             best_ridge_params = grid.best_params_
             best_ridge_r2 = test_r2
+            best_ridge_mae = test_mae
+            best_ridge_var_pred = test_var_pred
+            best_ridge_error_mean = test_error_mean
+            best_ridge_error_var = test_error_var
     if name == "Lasso":
         if test_r2 > best_lasso_r2:
             best_lasso = best
             best_lasso_params = grid.best_params_
             best_lasso_r2 = test_r2
+            best_lasso_mae = test_mae
+            best_lasso_var_pred = test_var_pred
+            best_lasso_error_mean = test_error_mean
+            best_lasso_error_var = test_error_var
     if name == "HistGradientBoostingRegressor":
         if test_r2 > best_hgb_r2:
             best_hgb = best
             best_hgb_params = grid.best_params_
             best_hgb_r2 = test_r2
+            best_hgb_mae = test_mae
+            best_hgb_var_pred = test_var_pred
+            best_hgb_error_mean = test_error_mean
+            best_hgb_error_var = test_error_var
 
     print("Best params:", grid.best_params_)
     print("Best CV score:", grid.best_score_)
     print("Regression metrics (test):")
     print("MSE:", test_mse)
+    print("MAE:", test_mae)
     print("R2:", test_r2)
 
     if test_r2 > best_r2:
         best_r2 = test_r2
+        best_mae = test_mae
         best_model = best
         best_params = grid.best_params_
+
 
 print("\n=== Mejor modelo global ===")
 print("Mejor modelo:", best_model)
 print("Mejores hiperparámetros:", best_params)
 print("Mejor R2 en test:", best_r2)
+print("Mejor MAE en test:", best_mae)
 
-#Ahora quiero usar este mejor modelo global para, dados los datos de X_val, predecir y_val y registrar MSE y R2
+colnames = ['Modelo', 'Mejores Hiperparámetros', 'R2 en test', 'MAE en test', 'Varianza en test', 'Error Medio en test', 'Varianza de Error en test']
+res_lr = np.array(['Linear Regression', best_lr_params, best_lr_r2, best_lr_mae, best_lr_var_pred, best_lr_error_mean, best_lr_error_var])
+res_ridge = np.array(['Ridge', best_ridge_params, best_ridge_r2, best_ridge_mae, best_ridge_var_pred, best_ridge_error_mean, best_ridge_error_var])
+res_lasso = np.array(['Lasso', best_lasso_params, best_lasso_r2, best_lasso_mae, best_lasso_var_pred, best_lasso_error_mean, best_lasso_error_var])
+res_hgb = np.array(['HistGradientBoosting', best_hgb_params, best_hgb_r2, best_hgb_mae, best_hgb_var_pred, best_hgb_error_mean, best_hgb_error_var])
+res = np.vstack([res_lr, res_ridge, res_lasso, res_hgb])
+
+#Ahora quiero usar este mejor modelo global para, dados los datos de X_val, predecir y_val y registrar MSE, MAE y R2
 
 y_val_pred = best_model.predict(X_val)
 y_val_mse = mean_squared_error(y_val, y_val_pred)
+y_val_mae = mean_absolute_error(y_val, y_val_pred)
 y_val_r2 = r2_score(y_val, y_val_pred)
 
 print("MSE en validación:", y_val_mse)
+print("MAE en validación:", y_val_mae)
 print("R2 en validación:", y_val_r2)
-
-# Como HistGradientBoosting y Regresion Lineal son los que me dieron mejor en test, los grafico:
-# Ridge
-
-y_pred_lr = best_lr.predict(X_test)
-plt.figure(figsize=(6, 6))
-plt.scatter(y_test, y_pred_lr)
-plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
-plt.title("Regresión Lineal: y_test vs y_pred\nR2 Test = {:.4f}".format(best_lr_r2))
-plt.suptitle("Parametros: {}".format(best_lr_params))
-plt.xlabel("y_test")
-plt.ylabel("y_pred")
-plt.grid(True)
-plt.savefig("Mejor_Regresion_Lineal.png")
-plt.show()
-
-# HGB
-y_pred_hgb = best_hgb.predict(X_test)
-plt.figure(figsize=(6, 6))
-plt.scatter(y_test, y_pred_hgb)
-plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
-plt.title("HistGradientBoosting: y_test vs y_pred\nR2 Test = {:.4f}".format(best_hgb_r2))
-plt.suptitle("Parametros: {}".format(best_hgb_params))
-plt.xlabel("y_test")
-plt.ylabel("y_pred")
-plt.grid(True)
-plt.savefig("Mejor_HGB.png")
-plt.show()
 
 # Grafico R² por max_depth (cada 1 unidad)
 

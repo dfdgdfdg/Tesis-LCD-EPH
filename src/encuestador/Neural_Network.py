@@ -6,7 +6,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.base import clone
 import Feature_Engineering as FE
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ data = FE.data
 data_reg = data[(data['INGRESO'] == 1) & (data["PROP"].notna())]
 y_reg = data_reg['logP47T']
 excluir_cols = {'logP47T', 'Q','INGRESO', 'CODUSU', 'P47T', 'P21', 'T_VI', 'V12_M', 'V2_M', 'V3_M', 'V5_M', 'TOT_P12', 'PP08D1', 
-                'logP21', 'logT_VI', 'logV12_M', 'logV2_M', 'logV3_M', 'logV5_M', 'logTOT_P12', 'logPP08D1','ANO4','TRIMESTRE'}
+                'logP21', 'logT_VI', 'logV12_M', 'logV2_M', 'logV3_M', 'logV5_M', 'logTOT_P12', 'logPP08D1','ANO4','TRIMESTRE','INGRESO_NLB','INGRESO_JUB','INGRESO_SBS'}
 X_reg = data_reg.drop(columns=excluir_cols)
 candidate_cols = X_reg.columns.difference(excluir_cols)
 
@@ -72,10 +72,9 @@ param_grid = {
     'reg__max_iter': [100, 200]
 }
 
-# Split y búsqueda (CV)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.25, random_state=42
-)
+#Uso la misma separacion que en Deeper_Grid_Search.py así la comparacion de resultados es justa.
+X_train_test, X_val, y_train_test, y_val = train_test_split(X_reg, y_reg, test_size=0.10, random_state=42) #Separo 10% para validacion
+X_train, X_test, y_train, y_test = train_test_split(X_train_test, y_train_test, test_size=2/9, random_state=42) #Separo 20% total para test, 70% Train
 
 print("Haciendo grid search")
 
@@ -92,35 +91,22 @@ grid = GridSearchCV(
 grid.fit(X_train, y_train)
 
 best_model = grid.best_estimator_
-
-y_test_pred = best_model.predict(X_test)
-test_mse = mean_squared_error(y_test, y_test_pred)
-test_r2  = r2_score(y_test, y_test_pred)
-
-print("\n=== Mejor configuración encontrada ===")
-print(grid.best_params_)
-print("\n=== Métricas en test ===")
-print(f"Test MSE: {test_mse:.6f} | Test R²: {test_r2:.6f}")
-
-# 1) Tomo el mejor modelo de la busqueda y grafico y_pred vs y_test
-best_model = grid.best_estimator_
 best_params = grid.best_params_
 
 y_test_pred = best_model.predict(X_test)
 test_mse = mean_squared_error(y_test, y_test_pred)
+test_mae = mean_absolute_error(y_test, y_test_pred)
 test_r2  = r2_score(y_test, y_test_pred)
+test_var_pred = np.var(y_test_pred)
+test_error_mean = np.mean(y_test - y_test_pred)
+test_error_var = np.var(y_test - y_test_pred)
 
-plt.figure(figsize=(6.5,6.5))
-plt.scatter(y_test, y_test_pred, alpha=0.65, edgecolor='k')
-lims = [min(y_test.min(), y_test_pred.min()), max(y_test.max(), y_test_pred.max())]
-plt.plot(lims, lims, 'r--', lw=1.5, label='y = x')
-plt.xlabel('y_test')
-plt.ylabel('y_pred')
-plt.title("Neural Network: y_test vs y_pred\nR2 Test = {:.4f}".format(test_r2))
-plt.suptitle("Parametros: {}".format(best_params))
-plt.grid(True, alpha=0.3)
-plt.legend()
-plt.show()
+res_nn = np.array(['MLP', best_params, test_r2, test_mae, test_var_pred, test_error_mean, test_error_var])
+
+print("\n=== Mejor configuración encontrada ===")
+print(grid.best_params_)
+print("\n=== Métricas en test ===")
+print(f"Test MSE: {test_mse:.6f} | Test MAE: {test_mae:.6f} | Test R²: {test_r2:.6f}")
 
 # Grafico R² por época (cada 5 épocas reales)
 
