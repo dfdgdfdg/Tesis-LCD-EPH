@@ -15,7 +15,7 @@ data = FE.data
 data_reg = data[(data['INGRESO'] == 1) & (data["PROP"].notna())]
 y_reg = data_reg['logP47T']
 excluir_cols = {'logP47T', 'Q','INGRESO', 'CODUSU', 'P47T', 'P21', 'T_VI', 'V12_M', 'V2_M', 'V3_M', 'V5_M', 'TOT_P12', 'PP08D1', 
-                'logP21', 'logT_VI', 'logV12_M', 'logV2_M', 'logV3_M', 'logV5_M', 'logTOT_P12', 'logPP08D1','ANO4','TRIMESTRE','INGRESO_NLB','INGRESO_JUB','INGRESO_SBS'}
+                'logP21', 'logT_VI', 'logV12_M', 'logV2_M', 'logV3_M', 'logV5_M', 'logTOT_P12', 'logPP08D1','INGRESO_NLB','INGRESO_JUB','INGRESO_SBS'}
 X_reg = data_reg.drop(columns=excluir_cols)
 
 X_train_test, X_val, y_train_test, y_val = train_test_split(X_reg, y_reg, test_size=0.10, random_state=42) #Separo 10% para validacion
@@ -26,15 +26,15 @@ cat_cols = X_train.select_dtypes(include=['object', 'category']).columns.tolist(
 # Grilla inicial hiperparámetros
 param_grids_base = {
     "LinearRegression": {
-        "reg__fit_intercept": [True, False]
+        "reg__fit_intercept": [True]
     },
     "Ridge": {
         "reg__alpha": [2, 5, 10],
-        "reg__fit_intercept": [True, False]
+        "reg__fit_intercept": [True]
     },
     "Lasso": {
         "reg__alpha": [0.005,0.0025,0.0075],
-        "reg__fit_intercept": [True, False]
+        "reg__fit_intercept": [True]
     },
     "HistGradientBoostingRegressor": {
         "reg__max_iter": [100,200],
@@ -49,18 +49,18 @@ param_grids_base = {
 
 preproc_scaled = ColumnTransformer([
     ('num', StandardScaler(), num_cols),
-    ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), cat_cols)
+    ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop = 'first'), cat_cols)
 ], remainder='drop')
 
 preproc_unscaled = ColumnTransformer([
     ('num', 'passthrough', num_cols),
-    ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), cat_cols)
+    ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False, drop = 'first'), cat_cols)
 ], remainder='drop')
 
 #Pipelines
 
 pipelines = {
-        "LinearRegression": Pipeline([('preproc', preproc_unscaled), ('reg', LinearRegression())]),
+        "LinearRegression": Pipeline([('preproc', preproc_scaled), ('reg', LinearRegression())]),
         "Ridge": Pipeline([('preproc', preproc_scaled), ('reg', Ridge())]),
         "Lasso": Pipeline([('preproc', preproc_scaled), ('reg', Lasso())]),
         "HistGradientBoostingRegressor": Pipeline([('preproc', preproc_unscaled), ('reg', HistGradientBoostingRegressor(random_state=42))])

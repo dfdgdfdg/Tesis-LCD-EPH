@@ -19,43 +19,67 @@ data = pd.concat([data22, data23, data24, data25], ignore_index=True)
 pd.set_option('display.max_columns', None)
 
 data['logP47T'] = np.where((data['P47T'] > 0), np.log10(data['P47T']), np.nan)
+data_original = data.copy()
 
-#Intento reducir la cardinalidad de las variables categoricas
-data['H07'] = data['H07'].map({0:0, 1: 1, 2: 0}) 
-data['H10'] = data['H10'].map({0:0, 1: 1, 2: 0}) 
-data['H11'] = data['H11'].map({0:0,1: 1, 2: 0}) 
-data['P07'] = data['P07'].map({0:0,1: 1, 2: 0}) 
-data['P05'] = data['P05'].map({0:0,1: 1, 2: 0}) 
-data['P08'] = data['P08'].map({0:0,1: 1, 2:1, 3:3,9:0}) 
-data['P09'] = data['P09'].map({0:0,9:0, 1:1, 2:2, 3:3, 4:4, 5:5, 6:6, 7:7, 8:8}) 
-data['PP07G_59'] = data['PP07G_59'].map({0:0, 5:5,1:0}) 
-data['V01'] = data['V01'].map({0:0,1:1,2:2,3:0,4:0,5:0,6:0}) 
-data['H05'] = data['H05'].map({0:0,1:1,2:2,3:0,4:0}) 
-data['H06'] = data['H06'].map({0:0,1:1,2:2,3:3,4:4,5:0,6:0,7:0,9:9}) 
-data['H08'] = data['H08'].map({0:0,1:1,2:0,3:0})
-data['H12'] = data['H12'].map({0:0,1:1,2:2,3:0,4:0})
-data['PROP'] = data['PROP'].map({0:0,1:1,2:2,3:3,4:0,5:0})
-data['H14'] = data['H14'].map({0:0,1:1,2:2,3:3,4:0,5:0})
-data['H13'] = data['H13'].map({0:0,1:1,2:0,4:0})
-data['P10'] = data['P10'].map({0:0,1:1,2:2,9:0})
+#Variables categoricas
+data['V01'] = data['V01'].replace({0:9})
+data['H05'] = data['H05'].replace({0:9}) 
+data['H06'] = data['H06'].replace({0:9}) 
+data['H07'] = data['H07'].replace({0:1}) #Al ser tan pocos los nulos, los agrupo con la clase mayoritaria
+data['H08'] = data['H08'].replace({0:1}) #Al ser tan pocos los nulos, los agrupo con la clase mayoritaria
+data['H09'] = data['H09'].replace({0:1}) #Al ser tan pocos los nulos, los agrupo con la clase mayoritaria
+data['H10'] = data['H10'].replace({0:1}) #Al ser tan pocos los nulos, los agrupo con la clase mayoritaria
+data['H11'] = data['H11'].replace({0:9}) 
+data['H12'] = data['H12'].replace({0:9})
+data['H13'] = data['H13'].replace({0:9})
+data['H14'] = data['H14'].replace({0:9})
+data['P05'] = data['P05'].replace({0:1}) #Al ser tan pocos los nulos, los agrupo con la clase mayoritaria
+data['P07'] = data['P07'].replace({0:1}) #Al ser tan pocos los nulos, los agrupo con la clase mayoritaria
+data['P08'] = data['P08'].replace({0:9}) 
+data['P09'] = data['P09'].astype("string").replace({"0":"Z_NO_APLICA"}) 
+data['P10'] = data['P10'].replace({0:9})
+data['PP07G_59'] = data['PP07G_59'].replace({1:0})  #Acá 0 no es nulo! 5: No tiene ninguno, 0: tiene al menos 1 de ellos.
+data['PROP'] = data['PROP'].replace({0:9})
+data["CONDACT"] = data["CONDACT"].replace({0:9})
+
+#Dropeo las variables pp07g_1,...,4; pp07h, pp07i, pp07j, pp07k ya que pp07g_59 me da una vision mas resumida de la calidad del trabajo de la persona. Resume informalidad, y 
+data.drop(columns = ["PP07G1", "PP07G2", "PP07G3","PP07G4","PP07H","PP07I","PP07J","PP07K"], inplace=True)
+
+#Dropeo las variables p07 y p08 ya que p09 y p10 me da una vision mas detallada de la calidad educativa de la persona.
+data.drop(columns = ["P07","P08"], inplace=True)
+
+tiene_banio = (data["H10"] == 1)
+
+banio_mejorado = (
+    tiene_banio &
+    data["H12"].isin([1, 2])
+)
+
+# 3) Indice de saneamiento. Dejo esta variable como numerica ordinal en vez de categorica.
+data["sanitacion_nivel"] = np.select(
+    condlist=[
+        ~tiene_banio,     # Nivel 0: no tiene baño
+        banio_mejorado,   # Nivel 2: baño mejorado
+        tiene_banio       # Nivel 1: baño precario
+    ],
+    choicelist=[
+        0,
+        2,
+        1
+    ],
+    default=9
+)
+
+#Uso indice saneamiento como indice para cualidades del  baño. Por esto elimino H10,H11,H12
+data.drop(columns=["H10","H11","H12"], inplace=True)
+
 #Todas las columnas de arriba son categoricas, las convierto a category
 data = data.astype({'ANO4': 'category', 'TRIMESTRE': 'category', 'AGLOMERADO': 'category', 'V01': 'category', 'H05': 'category', 
-                    'H06': 'category', 'H07': 'category', 'H08': 'category', 'H09':'category','H10':'category','H11':'category','H12':'category', 'PROP':'category', 'H14':'category','H13':'category',
-                    'CAT_INAC':'category', 'CAT_OCUP':'category', 'CH07':'category', 'P10':'category','P05':'category', 'P07':'category',
-                    'PP07G1':'category', 'PP07G2':'category','PP07G3':'category', 'PP07G4':'category','PP07H':'category',
-                    'PP07I':'category', 'PP07J':'category', 'PP07K':'category','Region':'category', 'P08':'category', 'P09':'category','CONDACT':'category','PP07G_59':'category', 'P02':'category'})
+                    'H06': 'category', 'H07': 'category', 'H08': 'category', 'H09':'category', 'PROP':'category', 
+                    'H14':'category','H13':'category','CAT_INAC':'category', 'CAT_OCUP':'category', 'CH07':'category', 'P10':'category','P05':'category', 
+                    'Region':'category', 'P09':'category','CONDACT':'category','PP07G_59':'category', 'P02':'category'})
 
 categorical_columns = data.select_dtypes(include=['category']).columns
-
-#Quiero hacer nuevas columnas "dummy" para ANIO y TRIMESTRE
-data['ANIO_2022_Dummy'] = (data['ANO4'] == 2022).astype(int)
-data['ANIO_2023_Dummy'] = (data['ANO4'] == 2023).astype(int)
-data['ANIO_2024_Dummy'] = (data['ANO4'] == 2024).astype(int)
-data['ANIO_2025_Dummy'] = (data['ANO4'] == 2025).astype(int)
-data['TRIMESTRE_1_Dummy'] = (data['TRIMESTRE'] == 1).astype(int)
-data['TRIMESTRE_2_Dummy'] = (data['TRIMESTRE'] == 2).astype(int)
-data['TRIMESTRE_3_Dummy'] = (data['TRIMESTRE'] == 3).astype(int)
-data['TRIMESTRE_4_Dummy'] = (data['TRIMESTRE'] == 4).astype(int)
 
 target_cols_reg = { 'P21', 'T_VI', 'V12_M', 'V2_M', 'V3_M', 'V5_M', 'TOT_P12', 'PP08D1'}
 
@@ -65,12 +89,16 @@ for col in target_cols_reg:
 
 
 def get_age_group(age):
-    if age <= 5:
-        return '0-5'
-    elif age <= 14:
-        return '6-14'
+    if age <= 3:
+        return '0-3'
+    elif age <=8:
+        return '4-8'
+    elif age <= 12:
+        return '9-12'
+    elif age <= 17:
+        return '13-17'
     elif age <= 24:
-        return '15-24'
+        return '18-24'
     elif age <= 64:
         return '25-64'
     else:
@@ -86,5 +114,13 @@ for age_group in age_group_counts.columns:
 data.drop(columns=['Rango_Etario'], inplace=True)
 
 #Maximo nivel educativo en el hogar
+import numpy as np
+import pandas as pd
 
-data['Max_Nivel_Educativo'] = data.groupby(['CODUSU'])['P09'].transform(lambda s: s.astype(int).max())
+p09_num = pd.to_numeric(
+    data['P09'].replace("Z_NO_APLICA", np.nan),
+    errors="coerce"
+)
+
+data['Max_Nivel_Educativo'] = p09_num.groupby(data['CODUSU']).transform('max').fillna(0)
+
